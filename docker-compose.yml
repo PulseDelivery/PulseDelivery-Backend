@@ -1,1 +1,17 @@
-// PostgreSQL, MongoDB, Redis, RabbitMQ, Kafka
+version: '3.8'
+
+services:
+  postgresdb:
+    image: postgres:17
+    container_name: pulsedelivery-postgres
+    environment:
+      - POSTGRES_USER=admin
+      - POSTGRES_PASSWORD=Password123*
+      - POSTGRES_DB=IdentityDb
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data:
