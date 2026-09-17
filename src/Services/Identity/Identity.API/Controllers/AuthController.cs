@@ -6,6 +6,8 @@ using Identity.API.Services;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using MassTransit;
+using PulseDelivery.Shared.Events;
 
 namespace Identity.API.Controllers;
 
@@ -13,11 +15,13 @@ public class AuthController : CustomBaseController
 {
     private readonly UserManager<AppUser> _userManager;
     private readonly ITokenService _tokenService;
+    private readonly IPublishEndpoint _publishEndpoint;
 
-    public AuthController(UserManager<AppUser> userManager, ITokenService tokenService)
+    public AuthController(UserManager<AppUser> userManager, ITokenService tokenService, IPublishEndpoint publishEndpoint)
     {
         _userManager = userManager;
         _tokenService = tokenService;
+        _publishEndpoint = publishEndpoint;
     }
 
     [HttpPost("register")]
@@ -40,6 +44,15 @@ public class AuthController : CustomBaseController
                 Id = user.Id, 
                 Email = user.Email
             };
+            var userRegisteredEvent = new UserRegisteredEvent
+            {
+                UserId = user.Id,
+                Email = user.Email,
+                FirstName = user.FirstName,
+                LastName = user.LastName
+            };
+
+            await _publishEndpoint.Publish(userRegisteredEvent);
 
             
             return CreateActionResult(ResponseDto<RegisterResponseDto>.Success(responseData, StatusCodes.Status201Created));
