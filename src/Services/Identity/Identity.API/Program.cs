@@ -10,11 +10,27 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi;
+using MassTransit;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // MVC Controllers
 builder.Services.AddControllers();
+
+// MassTransit & RabbitMQ Configuration
+builder.Services.AddMassTransit(x =>
+{
+    x.UsingRabbitMq((context, cfg) =>
+    {
+        cfg.Host("localhost", "/", h =>
+        {
+            h.Username("guest");
+            h.Password("guest");
+        });
+        
+        cfg.ConfigureEndpoints(context);
+    });
+});
 
 // JWT Configuration
 builder.Services.Configure<JwtSettings>(
