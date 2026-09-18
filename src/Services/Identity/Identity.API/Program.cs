@@ -1,8 +1,8 @@
 using System.Text;
 using Asp.Versioning;
-using Identity.API.Configurations;
+using PulseDelivery.Shared.Configurations;
 using Identity.API.Data;
-using Identity.API.Middlewares;
+using PulseDelivery.Shared.Exceptions;
 using Identity.API.Models;
 using Identity.API.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -101,7 +101,6 @@ builder.Services.AddSwaggerGen(options =>
 });
 
 // Global Exception Handling
-builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 builder.Services.AddProblemDetails();
 
 // PostgreSQL Database
@@ -134,22 +133,20 @@ builder.Services
 // Authorization Policies
 builder.Services.AddAuthorization(options =>
 {
-    // Admin permission policy
-    options.AddPolicy("RequireAdminAccess", policy =>
+    options.AddPolicy("AdminAccess", policy =>
         policy.RequireClaim("Permission", "AdminAccess"));
 
-    // Advanced user policy
-    options.AddPolicy("RequireAdvancedUser", policy =>
-    {
-        policy.RequireClaim("Permission", "WriteAccess");
-        policy.RequireRole("Manager");
-    });
+    options.AddPolicy("ReadAccess", policy =>
+        policy.RequireClaim("Permission", "ReadAccess"));
+
+    options.AddPolicy("WriteAccess", policy =>
+        policy.RequireClaim("Permission", "WriteAccess"));
 });
 
 var app = builder.Build();
 
 // Global Exception Handler
-app.UseExceptionHandler();
+app.UseCustomException();
 
 // Swagger UI
 if (app.Environment.IsDevelopment())

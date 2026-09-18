@@ -1,12 +1,8 @@
-using Asp.Versioning;
-using Identity.API.DTOs;
 using Microsoft.AspNetCore.Mvc;
+using PulseDelivery.Shared.DTOs;
 
-namespace Identity.API.Controllers;
+namespace PulseDelivery.Shared.ControllerBases;
 
-[ApiVersion("1.0")] 
-[Route("api/v{version:apiVersion}/[controller]")] 
-[ApiController]
 public class CustomBaseController : ControllerBase
 {
     public IActionResult CreateActionResult<T>(ResponseDto<T> response)

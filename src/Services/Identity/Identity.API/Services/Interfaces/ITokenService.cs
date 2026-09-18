@@ -5,5 +5,5 @@ namespace Identity.API.Services;
 
 public interface ITokenService
 {
-    LoginResponseDto CreateToken(AppUser user);
+    Task<LoginResponseDto> CreateTokenAsync(AppUser user);
 }
