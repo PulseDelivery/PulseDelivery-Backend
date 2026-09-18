@@ -1,6 +1,6 @@
 using Identity.API.DTOs;
 
-namespace Identity.API.DTOs.Responses;
+using PulseDelivery.Shared.DTOs;
 
 public class PagedResponseDto<T> : ResponseDto<T>
 {

@@ -24,4 +24,9 @@
     <ProjectReference Include="..\..\..\Shared\PulseDelivery.Shared\PulseDelivery.Shared.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Folder Include="Configurations\" />
+    <Folder Include="Middlewares\" />
+  </ItemGroup>
+
 </Project>

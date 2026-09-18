@@ -1,36 +1,66 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
-using Identity.API.Configurations;
 using Identity.API.DTOs.Responses;
 using Identity.API.Models;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
+using PulseDelivery.Shared.Authorization;
+using PulseDelivery.Shared.Configurations;
 
 namespace Identity.API.Services;
 
 public class TokenService : ITokenService
 {
     private readonly JwtSettings _jwtSettings;
+    private readonly UserManager<AppUser> _userManager;
 
-    public TokenService(IOptions<JwtSettings> jwtOptions)
+    public TokenService(
+        IOptions<JwtSettings> jwtOptions,
+        UserManager<AppUser> userManager)
     {
         _jwtSettings = jwtOptions.Value;
+        _userManager = userManager;
     }
 
-    public LoginResponseDto CreateToken(AppUser user)
+    public async Task<LoginResponseDto> CreateTokenAsync(AppUser user)
     {
         var claims = new List<Claim>
         {
-            new Claim(JwtRegisteredClaimNames.Sub, user.Id),
-            new Claim(JwtRegisteredClaimNames.Email, user.Email!),
-            new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
+            new(JwtRegisteredClaimNames.Sub, user.Id),
+            new(JwtRegisteredClaimNames.Email, user.Email!),
+            new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
         };
 
-        var securityKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_jwtSettings.SecurityKey));
-        var credentials = new SigningCredentials(securityKey, SecurityAlgorithms.HmacSha256);
+        var userRoles = await _userManager.GetRolesAsync(user);
 
-        var expiration = DateTime.UtcNow.AddMinutes(_jwtSettings.AccessTokenExpirationInMinutes);
+        foreach (var role in userRoles)
+        {
+            if (!RolePermissions.PermissionsByRole.TryGetValue(
+                    role,
+                    out var permissions))
+            {
+                continue;
+            }
+
+            foreach (var permission in permissions)
+            {
+                claims.Add(new Claim(
+                    "Permission",
+                    permission));
+            }
+        }
+
+        var securityKey = new SymmetricSecurityKey(
+            Encoding.UTF8.GetBytes(_jwtSettings.SecurityKey));
+
+        var credentials = new SigningCredentials(
+            securityKey,
+            SecurityAlgorithms.HmacSha256);
+
+        var expiration = DateTime.UtcNow.AddMinutes(
+            _jwtSettings.AccessTokenExpirationInMinutes);
 
         var tokenDescriptor = new SecurityTokenDescriptor
         {
@@ -47,8 +77,9 @@ public class TokenService : ITokenService
         return new LoginResponseDto
         {
             AccessToken = tokenHandler.WriteToken(token),
-            RefreshToken = Guid.NewGuid().ToString(), 
-            ExpiresIn = _jwtSettings.AccessTokenExpirationInMinutes * 60
+            RefreshToken = Guid.NewGuid().ToString(),
+            ExpiresIn =
+                _jwtSettings.AccessTokenExpirationInMinutes * 60
         };
     }
 }
