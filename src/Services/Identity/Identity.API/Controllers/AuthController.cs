@@ -3,30 +3,40 @@ using Identity.API.DTOs.Requests;
 using Identity.API.DTOs.Responses;
 using Identity.API.Models;
 using Identity.API.Services;
+
 using MassTransit;
+
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+
 using PulseDelivery.Shared.ControllerBases;
 using PulseDelivery.Shared.DTOs;
 using PulseDelivery.Shared.Events;
+using PulseDelivery.Shared.Authorization;
 
 namespace Identity.API.Controllers;
 
+[ApiController]
+[Route("api/v1/[controller]")]
 public class AuthController : CustomBaseController
 {
     private readonly UserManager<AppUser> _userManager;
+    private readonly RoleManager<IdentityRole> _roleManager = null!;
     private readonly ITokenService _tokenService;
     private readonly IPublishEndpoint _publishEndpoint;
 
     public AuthController(
         UserManager<AppUser> userManager,
         ITokenService tokenService,
-        IPublishEndpoint publishEndpoint)
+        IPublishEndpoint publishEndpoint,
+        RoleManager<IdentityRole> roleManager)
     {
         _userManager = userManager;
         _tokenService = tokenService;
         _publishEndpoint = publishEndpoint;
+        _roleManager = roleManager;
     }
 
     [HttpPost("register")]
@@ -62,6 +72,12 @@ public class AuthController : CustomBaseController
             };
 
             await _publishEndpoint.Publish(userRegisteredEvent);
+            if (!await _roleManager.RoleExistsAsync("Customer"))
+            {
+                await _roleManager.CreateAsync(new IdentityRole("Customer"));
+            }
+
+            await _userManager.AddToRoleAsync(user, "Customer");await _userManager.AddToRoleAsync(user, "Customer");
 
             return CreateActionResult(
                 ResponseDto<RegisterResponseDto>.Success(
@@ -146,5 +162,32 @@ public class AuthController : CustomBaseController
             ResponseDto<LoginResponseDto>.Success(
                 responseData,
                 StatusCodes.Status200OK));
+    }
+    
+    [HttpPost("assign-restaurant-owner")]
+    [Authorize(Policy = Permissions.SystemAdmin)] 
+    public async Task<IActionResult> AssignRestaurantOwner([FromBody] AssignRestaurantOwnerRequestDto request)
+    {
+        // 1. Find the user
+        var user = await _userManager.FindByIdAsync(request.UserId);
+        if (user == null)
+        {
+            return CreateActionResult(ResponseDto<NoContent>.Fail("User not found.", 404));
+        }
+
+        // 2. Create the role if it does not exist and assign it to the user
+        if (!await _roleManager.RoleExistsAsync("RestaurantOwner"))
+        {
+            await _roleManager.CreateAsync(new IdentityRole("RestaurantOwner"));
+        }
+        await _userManager.AddToRoleAsync(user, "RestaurantOwner");
+
+        // 3. Add the restaurant ID to the user's list
+        if (!user.RestaurantIds.Contains(request.RestaurantId))
+        {
+            user.RestaurantIds.Add(request.RestaurantId);
+            await _userManager.UpdateAsync(user);
+        }
+        return CreateActionResult(ResponseDto<NoContent>.Success(204));
     }
 }

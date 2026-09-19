@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Mvc;
 using PulseDelivery.Shared.ControllerBases;
 using PulseDelivery.Shared.DTOs;
 using Microsoft.AspNetCore.Authorization;
+using PulseDelivery.Shared.Authorization; // Added for PBAC constants
 
 namespace Catalog.API.Controllers;
 
@@ -38,7 +39,7 @@ public class CatalogController : CustomBaseController
         var restaurant = await _repository.GetRestaurantByIdAsync(id);
         if (restaurant == null)
         {
-            return CreateActionResult(ResponseDto<RestaurantResponseDto>.Fail("Restoran bulunamadı.", 404));
+            return CreateActionResult(ResponseDto<RestaurantResponseDto>.Fail("Restaurant not found.", 404));
         }
         
         var responseDto = _mapper.Map<RestaurantResponseDto>(restaurant);
@@ -46,7 +47,7 @@ public class CatalogController : CustomBaseController
     }
 
     [HttpPost]
-    [Authorize(Policy = "AdminAccess")]
+    [Authorize(Policy = Permissions.SystemAdmin)] // Only the platform owner can create a new restaurant
     public async Task<IActionResult> CreateRestaurant([FromBody] CreateRestaurantRequestDto request)
     {
         var restaurant = _mapper.Map<Restaurant>(request);
@@ -57,26 +58,39 @@ public class CatalogController : CustomBaseController
     }
 
     [HttpPut]
-    [Authorize(Policy = "AdminAccess")]
+    [Authorize(Policy = Permissions.CatalogWrite)] // Gatekeeper: Checks whether the user has catalog write permission
     public async Task<IActionResult> UpdateRestaurant([FromBody] UpdateRestaurantRequestDto request)
     {
+        // 1. Business rule: Who is the user and which restaurants do they have access to?
+        var isSystemAdmin = User.HasClaim("Permission", Permissions.SystemAdmin);
+        var userRestaurantIds = User.FindAll("RestaurantId").Select(c => c.Value).ToList();
+
+        // 2. Business rule: If not a system admin and the restaurant is not in their list, deny access
+        if (!isSystemAdmin && !userRestaurantIds.Contains(request.Id))
+        {
+            return CreateActionResult(ResponseDto<NoContent>.Fail(
+                "You can only update restaurants or branches you are authorized to manage.", 403));
+        }
+
         var restaurant = _mapper.Map<Restaurant>(request);
         var result = await _repository.UpdateRestaurantAsync(restaurant);
         
-        if(!result)
-            return CreateActionResult(ResponseDto<NoContent>.Fail("Kayıt bulunamadı veya güncellenemedi.", 404));
+        if (!result)
+            return CreateActionResult(ResponseDto<NoContent>.Fail(
+                "The record was not found or could not be updated.", 404));
 
         return CreateActionResult(ResponseDto<NoContent>.Success(204));
     }
 
     [HttpDelete("{id:length(24)}")]
-    [Authorize(Policy = "AdminAccess")]
+    [Authorize(Policy = Permissions.SystemAdmin)] 
     public async Task<IActionResult> DeleteRestaurant(string id)
     {
         var result = await _repository.DeleteRestaurantAsync(id);
         
-        if(!result)
-            return CreateActionResult(ResponseDto<NoContent>.Fail("Kayıt bulunamadı.", 404));
+        if (!result)
+            return CreateActionResult(ResponseDto<NoContent>.Fail(
+                "The record was not found.", 404));
 
         return CreateActionResult(ResponseDto<NoContent>.Success(204));
     }
