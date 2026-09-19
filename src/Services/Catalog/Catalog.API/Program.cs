@@ -12,6 +12,7 @@ using Microsoft.OpenApi;
 using PulseDelivery.Shared.Configurations;
 using PulseDelivery.Shared.Exceptions;
 using PulseDelivery.Shared.DTOs;
+using PulseDelivery.Shared.Authorization;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -140,23 +141,17 @@ builder.Services.AddSwaggerGen(options =>
 // Authorization Policies
 builder.Services.AddAuthorization(options =>
 {
-    // Requires Permission = AdminAccess
-    options.AddPolicy("AdminAccess", policy =>
-        policy.RequireClaim(
-            "Permission",
-            "AdminAccess"));
+    // Platform owner only (e.g., deleting or creating restaurants)
+    options.AddPolicy(Permissions.SystemAdmin, policy =>
+        policy.RequireClaim("Permission", Permissions.SystemAdmin));
 
-    // Requires Permission = ReadAccess
-    options.AddPolicy("ReadAccess", policy =>
-        policy.RequireClaim(
-            "Permission",
-            "ReadAccess"));
+    // Catalog/Menu write permission (restaurant owners, managers, etc.)
+    options.AddPolicy(Permissions.CatalogWrite, policy =>
+        policy.RequireClaim("Permission", Permissions.CatalogWrite));
 
-    // Requires Permission = WriteAccess
-    options.AddPolicy("WriteAccess", policy =>
-        policy.RequireClaim(
-            "Permission",
-            "WriteAccess"));
+    // Catalog/Menu read permission (customers, couriers, employees, etc.)
+    options.AddPolicy(Permissions.CatalogRead, policy =>
+        policy.RequireClaim("Permission", Permissions.CatalogRead));
 });
 
 var app = builder.Build();
@@ -170,6 +165,8 @@ if (app.Environment.IsDevelopment())
 
 // HTTPS Redirect
 app.UseHttpsRedirection();
+// Global Exception Handler
+app.UseCustomException();
 
 // Authentication
 app.UseAuthentication();

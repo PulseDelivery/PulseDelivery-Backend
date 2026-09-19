@@ -1,47 +1,54 @@
 using System.Text;
+
 using Asp.Versioning;
-using PulseDelivery.Shared.Configurations;
+
 using Identity.API.Data;
-using PulseDelivery.Shared.Exceptions;
 using Identity.API.Models;
 using Identity.API.Services;
+
+using MassTransit;
+
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi;
-using MassTransit;
+
+using PulseDelivery.Shared.Authorization;
+using PulseDelivery.Shared.Configurations;
+using PulseDelivery.Shared.Exceptions;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// MVC Controllers
+
+// Controllers
 builder.Services.AddControllers();
 
-// MassTransit & RabbitMQ Configuration
-builder.Services.AddMassTransit(x =>
-{
-    x.UsingRabbitMq((context, cfg) =>
-    {
-        cfg.Host("localhost", "/", h =>
-        {
-            h.Username("guest");
-            h.Password("guest");
-        });
-        
-        cfg.ConfigureEndpoints(context);
-    });
-});
+
+// PostgreSQL / Entity Framework
+builder.Services.AddDbContext<ApplicationDbContext>(options =>
+    options.UseNpgsql(
+        builder.Configuration.GetConnectionString("DefaultConnection")
+    ));
+
+
+// Identity
+builder.Services
+    .AddIdentity<AppUser, IdentityRole>()
+    .AddEntityFrameworkStores<ApplicationDbContext>()
+    .AddDefaultTokenProviders();
+
 
 // JWT Configuration
 builder.Services.Configure<JwtSettings>(
     builder.Configuration.GetSection("JwtSettings"));
 
-builder.Services.AddScoped<ITokenService, TokenService>();
-
-// JWT Settings
 var jwtSettings = builder.Configuration
     .GetSection("JwtSettings")
     .Get<JwtSettings>()!;
+
+// Token Service
+builder.Services.AddScoped<ITokenService, TokenService>();
 
 // JWT Authentication
 builder.Services
@@ -51,6 +58,9 @@ builder.Services
             JwtBearerDefaults.AuthenticationScheme;
 
         options.DefaultChallengeScheme =
+            JwtBearerDefaults.AuthenticationScheme;
+
+        options.DefaultScheme =
             JwtBearerDefaults.AuthenticationScheme;
     })
     .AddJwtBearer(options =>
@@ -66,105 +76,137 @@ builder.Services
             ValidAudience = jwtSettings.Audience,
 
             IssuerSigningKey = new SymmetricSecurityKey(
-                Encoding.UTF8.GetBytes(jwtSettings.SecurityKey)
+                Encoding.UTF8.GetBytes(
+                    jwtSettings.SecurityKey
+                )
             ),
 
-            // Disable expiration tolerance
+            // Token expiration tolerance
             ClockSkew = TimeSpan.Zero
         };
     });
 
-// Swagger Services
-builder.Services.AddEndpointsApiExplorer();
 
-builder.Services.AddSwaggerGen(options =>
+// Authorization / PBAC
+builder.Services.AddAuthorization(options =>
 {
-    // JWT Security Definition
-    options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
-    {
-        Name = "Authorization",
-        Description =
-            "Enter 'Bearer' followed by your JWT token.\n\n" +
-            "Example: Bearer eyJhbGciOiJIUzI1NiIs...",
-        In = ParameterLocation.Header,
-        Type = SecuritySchemeType.Http,
-        Scheme = "bearer",
-        BearerFormat = "JWT"
-    });
-
-    // JWT Security Requirement
-    options.AddSecurityRequirement(document =>
-        new OpenApiSecurityRequirement
+    // Platform owner permissions
+    options.AddPolicy(
+        Permissions.SystemAdmin,
+        policy =>
         {
-            [new OpenApiSecuritySchemeReference("Bearer", document)] = []
+            policy.RequireClaim(
+                "Permission",
+                Permissions.SystemAdmin
+            );
         });
 });
 
-// Global Exception Handling
-builder.Services.AddProblemDetails();
 
-// PostgreSQL Database
-builder.Services.AddDbContext<ApplicationDbContext>(options =>
-    options.UseNpgsql(
-        builder.Configuration.GetConnectionString("DefaultConnection")
-    ));
+// MassTransit / RabbitMQ
+builder.Services.AddMassTransit(x =>
+{
+    x.UsingRabbitMq((context, cfg) =>
+    {
+        cfg.Host("localhost", "/", h =>
+        {
+            h.Username("guest");
+            h.Password("guest");
+        });
+
+        cfg.ConfigureEndpoints(context);
+    });
+});
+
 
 // API Versioning
 builder.Services
     .AddApiVersioning(options =>
     {
         options.DefaultApiVersion = new ApiVersion(1, 0);
+
         options.AssumeDefaultVersionWhenUnspecified = true;
+
         options.ReportApiVersions = true;
     })
     .AddMvc()
     .AddApiExplorer(options =>
     {
         options.GroupNameFormat = "'v'VVV";
+
         options.SubstituteApiVersionInUrl = true;
     });
 
-// Identity
-builder.Services
-    .AddIdentity<AppUser, IdentityRole>()
-    .AddEntityFrameworkStores<ApplicationDbContext>()
-    .AddDefaultTokenProviders();
 
-// Authorization Policies
-builder.Services.AddAuthorization(options =>
+// Swagger
+builder.Services.AddEndpointsApiExplorer();
+
+builder.Services.AddSwaggerGen(options =>
 {
-    options.AddPolicy("AdminAccess", policy =>
-        policy.RequireClaim("Permission", "AdminAccess"));
+    options.AddSecurityDefinition(
+        "Bearer",
+        new OpenApiSecurityScheme
+        {
+            Name = "Authorization",
 
-    options.AddPolicy("ReadAccess", policy =>
-        policy.RequireClaim("Permission", "ReadAccess"));
+            Description =
+                "Enter 'Bearer' followed by your JWT token.\n\n" +
+                "Example: Bearer eyJhbGciOiJIUzI1NiIs...",
 
-    options.AddPolicy("WriteAccess", policy =>
-        policy.RequireClaim("Permission", "WriteAccess"));
+            In = ParameterLocation.Header,
+
+            Type = SecuritySchemeType.Http,
+
+            Scheme = "bearer",
+
+            BearerFormat = "JWT"
+        });
+
+    options.AddSecurityRequirement(document =>
+        new OpenApiSecurityRequirement
+        {
+            [
+                new OpenApiSecuritySchemeReference(
+                    "Bearer",
+                    document)
+            ] = []
+        });
 });
 
+
+// Problem Details
+builder.Services.AddProblemDetails();
+
+
+// Build
 var app = builder.Build();
+
 
 // Global Exception Handler
 app.UseCustomException();
 
-// Swagger UI
+
+// Swagger
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
+
     app.UseSwaggerUI();
 }
 
-// HTTPS Redirect
+
+// HTTPS
 app.UseHttpsRedirection();
 
 // Authentication
 app.UseAuthentication();
 
+
 // Authorization
 app.UseAuthorization();
 
-// Map Controllers
+
+// Controllers
 app.MapControllers();
 
 app.Run();

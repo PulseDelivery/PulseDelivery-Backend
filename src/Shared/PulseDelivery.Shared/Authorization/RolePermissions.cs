@@ -5,7 +5,7 @@ public static class RolePermissions
     public static readonly Dictionary<string, string[]> PermissionsByRole = new() 
     { 
         // 1. PULSEDELIVERY ADMIN (Has full access)
-        ["PlatformAdmin"] = 
+        ["Admin"] = 
         [ 
             Permissions.SystemAdmin, 
             Permissions.CatalogRead, 
