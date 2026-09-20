@@ -7,6 +7,7 @@ namespace Order.Application.Commands.CreateOrder;
 public class CreateOrderCommand : IRequest<ResponseDto<Guid>>
 {
     public string CustomerId { get; set; } = string.Empty;
+    public string Email { get; set; } = string.Empty;
     public string RestaurantId { get; set; } = string.Empty;
     public decimal CartTotal { get; set; }
     

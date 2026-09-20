@@ -52,6 +52,7 @@ public class CreateOrderCommandHandler : IRequestHandler<CreateOrderCommand, Res
         {
             OrderId = order.Id,
             CustomerId = order.CustomerId,
+            Email = request.Email,  
             RestaurantId = order.RestaurantId,
             TotalAmount = order.TotalAmount,
             CreatedAt = DateTime.UtcNow

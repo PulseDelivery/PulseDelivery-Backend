@@ -1,25 +1,35 @@
-version: '3.8'
-
 services:
-  postgresdb:
+  identity-postgres:
     image: postgres:17
-    container_name: pulsedelivery-postgres
+    container_name: pulsedelivery-identity-postgres
     environment:
-      - POSTGRES_USER=admin
-      - POSTGRES_PASSWORD=Password123*
-      - POSTGRES_DB=IdentityDb
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: Password123*
+      POSTGRES_DB: IdentityDb
     ports:
       - "5433:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
-  
+      - identity_postgres_data:/var/lib/postgresql/data
+
+  order-postgres:
+    image: postgres:17
+    container_name: pulsedelivery-order-postgres
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: Password123*
+      POSTGRES_DB: OrderDb
+    ports:
+      - "5434:5432"
+    volumes:
+      - order_postgres_data:/var/lib/postgresql/data
+
   rabbitmq:
     image: rabbitmq:3-management
     container_name: pulsedelivery-rabbitmq
     ports:
-      - "5672:5672"   
-      - "15672:15672" 
-  
+      - "5672:5672"
+      - "15672:15672"
+
   mongodb:
     image: mongo:latest
     container_name: pulsedelivery-mongodb
@@ -29,5 +39,6 @@ services:
       - mongo_data:/data/db
 
 volumes:
-  postgres_data:
+  identity_postgres_data:
+  order_postgres_data:
   mongo_data:

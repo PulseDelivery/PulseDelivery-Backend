@@ -7,7 +7,10 @@ var builder = WebApplication.CreateBuilder(args);
 // MassTransit & RabbitMQ Configuration
 builder.Services.AddMassTransit(x =>
 {
+	// Register Consumer
     x.AddConsumer<UserRegisteredEventConsumer>();
+	// Order Created Consumer
+	x.AddConsumer<OrderCreatedEventConsumer>();
 
     x.UsingRabbitMq((context, cfg) =>
     {
@@ -17,10 +20,7 @@ builder.Services.AddMassTransit(x =>
             h.Password("guest");
         });
 
-        cfg.ReceiveEndpoint("user-registered-queue", e =>
-        {
-            e.ConfigureConsumer<UserRegisteredEventConsumer>(context);
-        });
+        cfg.ConfigureEndpoints(context);    
     });
 });
 
